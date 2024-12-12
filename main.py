@@ -1,11 +1,46 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, AfterValidator
+from typing import Annotated
+
+
+def dag_validator(dag: int):
+    if dag < 1 or dag > 31:
+        raise ValueError("Dag moet tussen 1 en 31 liggen.")
+    return dag
+
+
+def maand_validator(maand: str):
+    if maand not in [
+        "januari",
+        "februari",
+        "maart",
+        "april",
+        "mei",
+        "juni",
+        "juli",
+        "augustus",
+        "september",
+        "oktober",
+        "november",
+        "december",
+    ]:
+        raise ValueError(
+            "Maand moet een van de volgende zijn: januari, februari, maart, april, mei, juni, juli, augustus, september, oktober, november, december."
+        )
+    return maand
+
+
+dag = Annotated[int, AfterValidator(dag_validator)]
+maand = Annotated[
+    str,
+    AfterValidator(maand_validator),
+]
 
 
 class Afspraak(BaseModel):
     titel: str
-    dag: int
-    maand: str
+    dag: dag
+    maand: maand
     jaar: int
 
 

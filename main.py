@@ -1,6 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from pydantic import BaseModel, AfterValidator
-from typing import Annotated, Optional
+from typing import Annotated, Optional, Generator
 import sqlite3
 from sqlmodel import Field, SQLModel, create_engine, Session, select
 
@@ -58,6 +58,12 @@ engine = create_engine("sqlite:///afspraken.db")
 
 app = FastAPI()
 
+
+def get_session() -> Generator[Session, None, None]:
+    with Session(engine) as session:
+        yield session
+
+
 with sqlite3.connect("afspraken.db") as connection:
     cursor = connection.cursor()
     cursor.execute(
@@ -66,32 +72,38 @@ with sqlite3.connect("afspraken.db") as connection:
     res = cursor.execute("SELECT * FROM afspraken")
     if not res.fetchall():
         cursor.execute(
-            """INSERT INTO afspraken (titel, dag, maand, jaar) VALUES
-            ("dokter afspraak", 12, "mei", 2025),
-            ("tandarts afspraak", 15, "mei", 2025),
-            ("kapper afspraak", 18, "mei", 2025)"""
+            """INSERT INTO afspraken (id, titel, dag, maand, jaar) VALUES
+            (1, "dokter afspraak", 12, "mei", 2025),
+            (2, "tandarts afspraak", 15, "mei", 2025),
+            (3, "kapper afspraak", 18, "mei", 2025)"""
         )
         connection.commit()
 
     @app.post("/")
-    async def create_afspraak(afspraak: Afspraken):
-        with Session(engine) as session:
-            session.add(afspraak)
-            session.commit()
+    async def create_afspraak(
+        afspraak: Afspraken, session: Session = Depends(get_session)
+    ):
+        session.add(afspraak)
+        session.commit()
         return {"message": "Afspraak toegevoegd"}
 
-    @app.delete("/{titel}")
-    async def delete_afspraak(titel: str):
-        with Session(engine) as session:
-            statement = select(Afspraken).where(Afspraken.titel == titel)
-            results = session.exec(statement)
-            afspraak = results.one()
-            session.delete(afspraak)
-            session.commit()
+    @app.delete("/{id}")
+    async def delete_afspraak(id: int, session: Session = Depends(get_session)):
+        statement = select(Afspraken).where(Afspraken.id == id)
+        results = session.exec(statement)
+        afspraak = results.one()
+        session.delete(afspraak)
+        session.commit()
         return {"message": "Afspraak verwijderd"}
 
     @app.get("/")
-    async def root():
-        with Session(engine) as session:
-            afspraken = session.exec(select(Afspraken)).all()
+    async def root(session: Session = Depends(get_session)):
+        afspraken = session.exec(select(Afspraken)).all()
         return afspraken
+
+    @app.get("/{id}")
+    async def read_afspraak(id: int, session: Session = Depends(get_session)):
+        statement = select(Afspraken).where(Afspraken.id == id)
+        results = session.exec(statement)
+        afspraak = results.one()
+        return afspraak

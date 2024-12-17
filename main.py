@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel, AfterValidator
 from typing import Annotated
+import sqlite3
 
 
 def dag_validator(dag: int):
@@ -30,42 +31,60 @@ def maand_validator(maand: str):
     return maand
 
 
+def jaar_validator(jaar: int):
+    if jaar < 2024:
+        raise ValueError("Jaar moet 2024 of later zijn.")
+    return jaar
+
+
 dag = Annotated[int, AfterValidator(dag_validator)]
 maand = Annotated[
     str,
     AfterValidator(maand_validator),
 ]
+jaar = Annotated[int, AfterValidator(jaar_validator)]
 
 
 class Afspraak(BaseModel):
     titel: str
     dag: dag
     maand: maand
-    jaar: int
+    jaar: jaar
 
 
-afspraken = [
-    {"titel": "dokter afspraak", "dag": 12, "maand": "mei", "jaar": 2025},
-    {"titel": "tandarts afspraak", "dag": 15, "maand": "mei", "jaar": 2025},
-    {"titel": "kapper afspraak", "dag": 18, "maand": "mei", "jaar": 2025},
-]
 app = FastAPI()
 
+with sqlite3.connect("afspraken.db") as connection:
+    cursor = connection.cursor()
+    cursor.execute(
+        "CREATE TABLE IF NOT EXISTS afspraken (titel TEXT, dag INTEGER, maand TEXT, jaar INTEGER)"
+    )
+    res = cursor.execute("SELECT * FROM afspraken")
+    if not res.fetchall():
+        cursor.execute(
+            """INSERT INTO afspraken (titel, dag, maand, jaar) VALUES
+            ("dokter afspraak", 12, "mei", 2025),
+            ("tandarts afspraak", 15, "mei", 2025),
+            ("kapper afspraak", 18, "mei", 2025)"""
+        )
+        connection.commit()
 
-@app.post("/")
-async def create_afspraak(afspraak: Afspraak):
-    afspraken.append(afspraak)
-    return afspraak
+    @app.post("/")
+    async def create_afspraak(afspraak: Afspraak):
+        cursor.execute(
+            "INSERT INTO afspraken (titel, dag, maand, jaar) VALUES (?, ?, ?, ?)",
+            (afspraak.titel, afspraak.dag, afspraak.maand, afspraak.jaar),
+        )
+        connection.commit()
+        return {"message": "Afspraak toegevoegd"}
 
+    @app.delete("/{titel}")
+    async def delete_afspraak(titel: str):
+        cursor.execute("DELETE FROM afspraken WHERE titel = ?", (titel,))
+        connection.commit()
+        return {"message": "Afspraak verwijderd"}
 
-@app.delete("/{titel}")
-async def delete_afspraak(titel: str):
-    for i in range(len(afspraken)):
-        if afspraken[i]["titel"] == titel:
-            afspraken.pop(i)
-            return {"message": "Afspraak verwijderd"}
-
-
-@app.get("/")
-async def root():
-    return afspraken
+    @app.get("/")
+    async def root():
+        res = cursor.execute("SELECT * FROM afspraken")
+        return res.fetchall()

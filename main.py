@@ -237,3 +237,6 @@ async def delete_afspraak(id: int, session: Session = Depends(get_session)):
 
 
 init_db()
+
+
+# https://fastapi.tiangolo.com/tutorial/security/oauth2-jwt/#hash-and-verify-the-passwords loopt achter, jwt.encode bestaat niet maar wordt verwacht in de tutorial

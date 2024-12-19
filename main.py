@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel, AfterValidator
 from sqlmodel import Field, SQLModel, create_engine, Session, select
@@ -206,20 +206,30 @@ async def read_users_me(current_user: Users = Depends(get_current_user)):
 
 
 @app.get("/")
-async def read_afspraken(session: Session = Depends(get_session)):
+async def read_afspraken(
+    session: Session = Depends(get_session),
+):
     afspraken = session.exec(select(Afspraken)).all()
     return afspraken
 
 
 @app.post("/")
-async def create_afspraak(afspraak: Afspraken, session: Session = Depends(get_session)):
+async def create_afspraak(
+    afspraak: Afspraken,
+    session: Session = Depends(get_session),
+    current_user: Users = Depends(get_current_user),
+):
     session.add(afspraak)
     session.commit()
     return {"message": "Afspraak toegevoegd"}
 
 
 @app.get("/{id}")
-async def read_afspraak(id: int, session: Session = Depends(get_session)):
+async def read_afspraak(
+    id: int,
+    session: Session = Depends(get_session),
+    current_user: Users = Depends(get_current_user),
+):
     afspraak = session.exec(select(Afspraken).where(Afspraken.id == id)).first()
     if not afspraak:
         raise HTTPException(status_code=404, detail="Afspraak niet gevonden")
@@ -227,7 +237,11 @@ async def read_afspraak(id: int, session: Session = Depends(get_session)):
 
 
 @app.delete("/{id}")
-async def delete_afspraak(id: int, session: Session = Depends(get_session)):
+async def delete_afspraak(
+    id: int,
+    session: Session = Depends(get_session),
+    current_user: Users = Depends(get_current_user),
+):
     afspraak = session.exec(select(Afspraken).where(Afspraken.id == id)).first()
     if not afspraak:
         raise HTTPException(status_code=404, detail="Afspraak niet gevonden")
@@ -237,6 +251,3 @@ async def delete_afspraak(id: int, session: Session = Depends(get_session)):
 
 
 init_db()
-
-
-# https://fastapi.tiangolo.com/tutorial/security/oauth2-jwt/#hash-and-verify-the-passwords loopt achter, jwt.encode bestaat niet maar wordt verwacht in de tutorial
